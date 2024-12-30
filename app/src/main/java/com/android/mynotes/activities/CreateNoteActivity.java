@@ -14,7 +14,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
-import android.util.Pair;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -32,10 +32,7 @@ import androidx.core.content.ContextCompat;
 
 import com.android.mynotes.R;
 import com.android.mynotes.database.NotesDatabase;
-import com.android.mynotes.decorators.NoteComponent;
-import com.android.mynotes.decorators.NoteDecorator;
-import com.android.mynotes.decorators.NoteDecoratorFactory;
-import com.android.mynotes.decorators.RedNoteDecorator;
+import com.android.mynotes.decorators.*;
 import com.android.mynotes.entities.Note;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
@@ -58,7 +55,7 @@ public class CreateNoteActivity extends AppCompatActivity {
     private View viewSubtitleIndicator;
     private ImageView imageNote;
 
-    private String selectedNoteColor = "#333333";
+    private NoteComponent currentNoteDecorator = new DefaultNoteDecorator(new Note());
     private String selectedImagePath;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -137,8 +134,22 @@ public class CreateNoteActivity extends AppCompatActivity {
     private void saveNote() {
         if (!validateFields()) return;
 
-        Note note = createNote();
-        saveNoteToDatabase(note);
+        Note note = new Note.Builder()
+                .setTitle(inputNoteTitle.getText().toString())
+                .setSubtitle(inputNoteSubtitle.getText().toString())
+                .setNoteText(inputNoteText.getText().toString())
+                .setDateTime(textDateTime.getText().toString())
+                .setColor(currentNoteDecorator.getColor())
+                .setImagePath(selectedImagePath)
+                .build();
+
+        executor.execute(() -> {
+            NotesDatabase.getDataBase(this).noteDao().insertNote(note);
+            handler.post(() -> {
+                setResult(RESULT_OK);
+                finish();
+            });
+        });
     }
 
     /**
@@ -156,38 +167,6 @@ public class CreateNoteActivity extends AppCompatActivity {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Creates a note object based on user input.
-     * @return A new Note object.
-     */
-    private Note createNote() {
-        return new Note.Builder()
-                .setTitle(inputNoteTitle.getText().toString())
-                .setSubtitle(inputNoteSubtitle.getText().toString())
-                .setNoteText(inputNoteText.getText().toString())
-                .setDateTime(textDateTime.getText().toString())
-                .setColor(selectedNoteColor)
-                .setImagePath(selectedImagePath)
-                .build();
-    }
-
-    /**
-     * Saves the note to the database.
-     * @param note The note to save.
-     */
-    private void saveNoteToDatabase(Note note) {
-        NoteComponent decoratedNote = NoteDecoratorFactory.getDecorator(note);
-        note.setColor(decoratedNote.getColor());
-
-        executor.execute(() -> {
-            NotesDatabase.getDataBase(this).noteDao().insertNote(note);
-            handler.post(() -> {
-                setResult(RESULT_OK);
-                finish();
-            });
-        });
     }
 
     /**
@@ -217,39 +196,38 @@ public class CreateNoteActivity extends AppCompatActivity {
      * Configures color selection options for notes.
      */
     private void setupColorOptions(LinearLayout layoutMiscellaneous) {
-        Map<Integer, Pair<String, Integer>> colorMap = getColorMap();
+        Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorMap();
 
-        for (Map.Entry<Integer, Pair<String, Integer>> entry : colorMap.entrySet()) {
+        for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
             View colorView = layoutMiscellaneous.findViewById(entry.getKey());
-            ImageView imageView = layoutMiscellaneous.findViewById(entry.getValue().second);
 
-            colorView.setOnClickListener(v -> updateSelectedColor(entry.getValue().first, imageView, colorMap));
+            colorView.setOnClickListener(v -> {
+                try {
+                    currentNoteDecorator = entry.getValue().getConstructor(NoteComponent.class).newInstance(new Note());
+                    updateUIForSelectedColor(currentNoteDecorator.getColor());
+                } catch (Exception e) {
+                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
+                }
+            });
         }
     }
 
-    private Map<Integer, Pair<String, Integer>> getColorMap() {
-        Map<Integer, Pair<String, Integer>> colorMap = new HashMap<>();
-        colorMap.put(R.id.viewColor1, new Pair<>("#333333", R.id.imageColor1));
-        colorMap.put(R.id.viewColor2, new Pair<>("#FDBE3B", R.id.imageColor2));
-        colorMap.put(R.id.viewColor3, new Pair<>("#FF4842", R.id.imageColor3));
-        colorMap.put(R.id.viewColor4, new Pair<>("#3A52Fc", R.id.imageColor4));
-        colorMap.put(R.id.viewColor5, new Pair<>("#17C51E", R.id.imageColor5));
+    private Map<Integer, Class<? extends NoteDecorator>> getColorMap() {
+        Map<Integer, Class<? extends NoteDecorator>> colorMap = new HashMap<>();
+        colorMap.put(R.id.viewColor1, DefaultNoteDecorator.class);
+        colorMap.put(R.id.viewColor2, YellowNoteDecorator.class);
+        colorMap.put(R.id.viewColor3, RedNoteDecorator.class);
+        colorMap.put(R.id.viewColor4, BlueNoteDecorator.class);
+        colorMap.put(R.id.viewColor5, GreenNoteDecorator.class);
         return colorMap;
     }
 
     /**
-     * Updates the selected color and refreshes UI.
+     * Updates the UI to reflect the selected color.
      */
-    private void updateSelectedColor(String color, ImageView selectedImageView, Map<Integer, Pair<String, Integer>> colorMap) {
-        selectedNoteColor = color;
-
-        colorMap.values().forEach(pair -> {
-            ImageView imageView = findViewById(pair.second);
-            imageView.setImageResource(0);
-        });
-
-        selectedImageView.setImageResource(R.drawable.ic_done);
-        setSubtitleIndicatorColor();
+    private void updateUIForSelectedColor(String colorCode) {
+        GradientDrawable gradientDrawable = (GradientDrawable) viewSubtitleIndicator.getBackground();
+        gradientDrawable.setColor(Color.parseColor(colorCode));
     }
 
     /**
@@ -265,14 +243,6 @@ public class CreateNoteActivity extends AppCompatActivity {
                 requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES);
             }
         });
-    }
-
-    /**
-     * Updates the color of the subtitle indicator.
-     */
-    private void setSubtitleIndicatorColor() {
-        GradientDrawable gradientDrawable = (GradientDrawable) viewSubtitleIndicator.getBackground();
-        gradientDrawable.setColor(Color.parseColor(selectedNoteColor));
     }
 
     /**
