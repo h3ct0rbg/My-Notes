@@ -1,17 +1,17 @@
 package com.android.mynotes.activities;
 
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.recyclerview.widget.StaggeredGridLayoutManager;
-
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.ImageView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 
 import com.android.mynotes.R;
 import com.android.mynotes.adapters.NotesAdapter;
@@ -23,13 +23,17 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * MainActivity manages the display of notes in a RecyclerView and the addition of new notes.
+ */
 public class MainActivity extends AppCompatActivity {
 
-    public static final int REQUEST_CODE_ADD_NOTE = 1;
-
     private RecyclerView notesRecyclerView;
-    private List<Note> noteList;
+    private final List<Note> noteList = new ArrayList<>();
     private NotesAdapter notesAdapter;
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private ActivityResultLauncher<Intent> addNoteLauncher;
 
@@ -38,54 +42,70 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize the result launcher
+        setupUI();
+        setupActivityResultLauncher();
+        fetchAndDisplayNotes();
+    }
+
+    /**
+     * Sets up the UI components like RecyclerView and the "Add Note" button.
+     */
+    private void setupUI() {
+        notesRecyclerView = findViewById(R.id.notesRecyclerView);
+        notesRecyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
+
+        notesAdapter = new NotesAdapter(noteList);
+        notesRecyclerView.setAdapter(notesAdapter);
+
+        ImageView imageAddNoteMain = findViewById(R.id.imageAddNoteMain);
+        imageAddNoteMain.setOnClickListener(v -> openCreateNoteActivity());
+    }
+
+    /**
+     * Sets up the ActivityResultLauncher to handle results from CreateNoteActivity.
+     */
+    private void setupActivityResultLauncher() {
         addNoteLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK) {
-                        getNotes();
+                        fetchAndDisplayNotes();
                     }
                 }
         );
-
-        ImageView imageAddNoteMain = findViewById(R.id.imageAddNoteMain);
-        imageAddNoteMain.setOnClickListener(v -> {
-            Intent intent = new Intent(getApplicationContext(), CreateNoteActivity.class);
-            addNoteLauncher.launch(intent); // Launch the activity
-        });
-
-        notesRecyclerView = findViewById(R.id.notesRecyclerView);
-        notesRecyclerView.setLayoutManager(
-                new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
-        );
-
-        noteList = new ArrayList<>();
-        notesAdapter = new NotesAdapter(noteList);
-        notesRecyclerView.setAdapter(notesAdapter);
-
-        getNotes();
     }
 
-    private void getNotes() {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Handler handler = new Handler(Looper.getMainLooper());
+    /**
+     * Opens the CreateNoteActivity using the ActivityResultLauncher.
+     */
+    private void openCreateNoteActivity() {
+        Intent intent = new Intent(this, CreateNoteActivity.class);
+        addNoteLauncher.launch(intent);
+    }
 
+    /**
+     * Fetches notes from the database and updates the RecyclerView.
+     */
+    private void fetchAndDisplayNotes() {
         executor.execute(() -> {
-            List<Note> notes = NotesDatabase
-                    .getDataBase(getApplicationContext())
-                    .noteDao()
-                    .getAllNotes();
-
-            handler.post(() -> {
-                if(noteList.isEmpty()) {
-                    noteList.addAll(notes);
-                    notesAdapter.notifyDataSetChanged();
-                } else {
-                    noteList.add(0, notes.get(0));
-                    notesAdapter.notifyItemInserted(0);
-                }
-                notesRecyclerView.smoothScrollToPosition(0);
-            });
+            List<Note> notes = NotesDatabase.getDataBase(this).noteDao().getAllNotes();
+            handler.post(() -> updateNotesList(notes));
         });
+    }
+
+    /**
+     * Updates the notes list and refreshes the RecyclerView.
+     * @param notes List of notes fetched from the database.
+     */
+    @SuppressLint("NotifyDataSetChanged")
+    private void updateNotesList(List<Note> notes) {
+        if (noteList.isEmpty()) {
+            noteList.addAll(notes);
+            notesAdapter.notifyDataSetChanged();
+        } else {
+            noteList.add(0, notes.get(0));
+            notesAdapter.notifyItemInserted(0);
+            notesRecyclerView.smoothScrollToPosition(0);
+        }
     }
 }

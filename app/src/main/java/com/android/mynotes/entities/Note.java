@@ -1,14 +1,15 @@
 package com.android.mynotes.entities;
 
-import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
+import com.android.mynotes.decorators.NoteComponent;
+
 import java.io.Serializable;
 
 @Entity(tableName = "notes")
-public class Note implements Serializable {
+public class Note implements Serializable, NoteComponent {
 
     @PrimaryKey(autoGenerate = true)
     private int id;
@@ -34,72 +35,152 @@ public class Note implements Serializable {
     @ColumnInfo(name = "web_link")
     private String webLink;
 
-    public int getId() {
-        return id;
+    private Note(Builder builder) {
+        this.id = builder.id;
+        this.title = builder.title;
+        this.dateTime = builder.dateTime;
+        this.subtitle = builder.subtitle;
+        this.noteText = builder.noteText;
+        this.imagePath = builder.imagePath;
+        this.color = builder.color;
+        this.webLink = builder.webLink;
     }
 
+    public Note(){ }
+
+    @Override
+    public int getId() {
+        return this.id;
+    }
+
+    @Override
     public void setId(int id) {
         this.id = id;
     }
 
+    @Override
     public String getTitle() {
-        return title;
+        return this.title;
     }
 
+    @Override
     public void setTitle(String title) {
         this.title = title;
     }
 
+    @Override
     public String getDateTime() {
-        return dateTime;
+        return this.dateTime;
     }
 
+    @Override
     public void setDateTime(String dateTime) {
         this.dateTime = dateTime;
     }
 
+    @Override
     public String getSubtitle() {
-        return subtitle;
+        return this.subtitle;
     }
 
+    @Override
     public void setSubtitle(String subtitle) {
         this.subtitle = subtitle;
     }
 
+    @Override
     public String getNoteText() {
-        return noteText;
+        return this.noteText;
     }
 
+    @Override
     public void setNoteText(String noteText) {
         this.noteText = noteText;
     }
 
+    @Override
     public String getImagePath() {
-        return imagePath;
+        return this.imagePath;
     }
 
+    @Override
     public void setImagePath(String imagePath) {
         this.imagePath = imagePath;
     }
 
+    @Override
     public String getColor() {
-        return color;
+        return this.color;
     }
 
+    @Override
     public void setColor(String color) {
         this.color = color;
     }
 
+    @Override
     public String getWebLink() {
-        return webLink;
+        return this.webLink;
     }
 
+    @Override
     public void setWebLink(String webLink) {
         this.webLink = webLink;
     }
 
-    @NonNull
-    public String toString() {
-        return title + " : " + dateTime;
+    public static class Builder {
+        private int id;
+        private String title;
+        private String dateTime;
+        private String subtitle;
+        private String noteText;
+        private String imagePath;
+        private String color;
+        private String webLink;
+
+        public Builder setId(int id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder setTitle(String title) {
+            this.title = title;
+            return this;
+        }
+
+        public Builder setDateTime(String dateTime) {
+            this.dateTime = dateTime;
+            return this;
+        }
+
+        public Builder setSubtitle(String subtitle) {
+            this.subtitle = subtitle;
+            return this;
+        }
+
+        public Builder setNoteText(String noteText) {
+            this.noteText = noteText;
+            return this;
+        }
+
+        public Builder setImagePath(String imagePath) {
+            this.imagePath = imagePath;
+            return this;
+        }
+
+        public Builder setColor(String color) {
+            this.color = color;
+            return this;
+        }
+
+        public Builder setWebLink(String webLink) {
+            this.webLink = webLink;
+            return this;
+        }
+
+        public Note build() {
+            return new Note(this);
+        }
+
     }
 }
