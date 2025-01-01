@@ -2,11 +2,13 @@ package com.android.mynotes.activities;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.pm.LabeledIntent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -15,7 +17,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.util.Patterns;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -27,6 +32,7 @@ import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
@@ -37,6 +43,7 @@ import com.android.mynotes.entities.Note;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import java.io.InputStream;
+import java.lang.reflect.Parameter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -54,9 +61,15 @@ public class CreateNoteActivity extends AppCompatActivity {
     private TextView textDateTime;
     private View viewSubtitleIndicator;
     private ImageView imageNote;
+    private TextView textWebURL;
+    private LinearLayout layoutWebURL;
 
     private NoteComponent currentNoteDecorator = new DefaultNoteDecorator(new Note());
     private String selectedImagePath;
+
+    private AlertDialog dialogAddURL;
+
+    private Note alreadyAvailableNote;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -74,6 +87,11 @@ public class CreateNoteActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_note);
         initializeUI();
+
+        if (getIntent().getBooleanExtra("isViewOrUpdate", false)) {
+            alreadyAvailableNote = (Note) getIntent().getSerializableExtra("note");
+            setViewOrUpdateNote();
+        }
     }
 
     /**
@@ -114,6 +132,8 @@ public class CreateNoteActivity extends AppCompatActivity {
         textDateTime = findViewById(R.id.textDateTime);
         viewSubtitleIndicator = findViewById(R.id.viewSubtitleIndicator);
         imageNote = findViewById(R.id.imageNote);
+        textWebURL = findViewById(R.id.textWebURL);
+        layoutWebURL = findViewById(R.id.layoutWebURL);
 
         textDateTime.setText(
                 new SimpleDateFormat("EEEE, dd MMMM yyyy HH:mm a", Locale.getDefault()).format(new Date())
@@ -126,6 +146,44 @@ public class CreateNoteActivity extends AppCompatActivity {
     private void setupSaveButton() {
         ImageView imageSave = findViewById(R.id.imageSave);
         imageSave.setOnClickListener(v -> saveNote());
+    }
+
+    private void setViewOrUpdateNote() {
+        inputNoteTitle.setText(alreadyAvailableNote.getTitle());
+        inputNoteSubtitle.setText(alreadyAvailableNote.getSubtitle());
+        inputNoteText.setText(alreadyAvailableNote.getNoteText());
+        textDateTime.setText(alreadyAvailableNote.getDateTime());
+
+        if (alreadyAvailableNote.getImagePath() != null && !alreadyAvailableNote.getImagePath().trim().isEmpty()) {
+            imageNote.setImageBitmap(BitmapFactory.decodeFile(alreadyAvailableNote.getImagePath()));
+            imageNote.setVisibility(View.VISIBLE);
+            selectedImagePath = alreadyAvailableNote.getImagePath();
+        }
+
+        if (alreadyAvailableNote.getWebLink() != null && !alreadyAvailableNote.getWebLink().trim().isEmpty()) {
+            textWebURL.setText(alreadyAvailableNote.getWebLink());
+            layoutWebURL.setVisibility(View.VISIBLE);
+        }
+
+        if (alreadyAvailableNote != null &&
+                alreadyAvailableNote.getColor() != null &&
+                !alreadyAvailableNote.getColor().trim().isEmpty()) {
+
+            Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorMap();
+
+            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
+                try {
+                    NoteDecorator decorator = entry.getValue().getConstructor(NoteComponent.class)
+                            .newInstance(new Note());
+                    if (decorator.getColor().equalsIgnoreCase(alreadyAvailableNote.getColor().trim())) {
+                        findViewById(entry.getKey()).performClick();
+                        break;
+                    }
+                } catch (Exception e) {
+                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
+                }
+            }
+        }
     }
 
     /**
@@ -141,7 +199,12 @@ public class CreateNoteActivity extends AppCompatActivity {
                 .setDateTime(textDateTime.getText().toString())
                 .setColor(currentNoteDecorator.getColor())
                 .setImagePath(selectedImagePath)
+                .setWebLink(textWebURL.getText().toString())
                 .build();
+
+        if (alreadyAvailableNote != null) {
+            note.setId(alreadyAvailableNote.getId());
+        }
 
         executor.execute(() -> {
             NotesDatabase.getDataBase(this).noteDao().insertNote(note);
@@ -181,6 +244,7 @@ public class CreateNoteActivity extends AppCompatActivity {
 
         setupColorOptions(layoutMiscellaneous);
         setupImageSelection(layoutMiscellaneous, bottomSheetBehavior);
+        setupURL(layoutMiscellaneous, bottomSheetBehavior);
     }
 
     /**
@@ -245,6 +309,13 @@ public class CreateNoteActivity extends AppCompatActivity {
         });
     }
 
+    private void setupURL(LinearLayout layoutMiscellaneous, BottomSheetBehavior<LinearLayout> bottomSheetBehavior) {
+        layoutMiscellaneous. findViewById(R.id. layoutAddUrl).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            showAddURLDialog();
+        });
+    }
+
     /**
      * Opens the image picker.
      */
@@ -278,14 +349,64 @@ public class CreateNoteActivity extends AppCompatActivity {
     /**
      * Converts a URI to a file path.
      */
-    private String getPathFromUri(Uri contentUri) {
-        try (Cursor cursor = getContentResolver().query(contentUri, null, null, null, null)) {
+    private String getPathFromUri(Uri uri) {
+        if (uri == null) return null;
+
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex("data");
-                return cursor.getString(index);
+                int columnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA);
+                if (columnIndex != -1) {
+                    return cursor.getString(columnIndex);
+                }
             }
+        } catch (Exception e) {
+            Log.e("CreateNoteActivity", "Error getting file path from URI", e);
         }
-        return contentUri.getPath();
+
+        // Fallback to using the URI path if no valid file path is found
+        return uri.toString();
+    }
+
+    private void showAddURLDialog() {
+        if (dialogAddURL == null) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(CreateNoteActivity.this);
+            View view = LayoutInflater.from(this).inflate(
+                    R.layout.layout_add_url,
+                    (ViewGroup) findViewById(R.id.layoutAddUrlContainer)
+            );
+            builder.setView(view);
+
+            dialogAddURL = builder.create();
+            if (dialogAddURL.getWindow() != null) {
+                dialogAddURL.getWindow().setBackgroundDrawable(new ColorDrawable(0));
+            }
+
+            final  EditText inputURL = view.findViewById(R.id.inputURL);
+            inputURL.requestFocus();
+
+            view.findViewById(R.id.textAdd).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (inputURL.getText().toString().trim().isEmpty()) {
+                        Toast.makeText(CreateNoteActivity.this, "Enter URL", Toast.LENGTH_SHORT).show();
+                    } else if (!Patterns.WEB_URL.matcher(inputURL.getText().toString()).matches()) {
+                        Toast.makeText(CreateNoteActivity.this, "Enter valid URL", Toast.LENGTH_SHORT).show();
+                    } else {
+                        textWebURL.setText(inputURL.getText().toString());
+                        layoutWebURL.setVisibility(View.VISIBLE);
+                        dialogAddURL.dismiss();
+                    }
+                }
+            });
+
+            view.findViewById(R.id.textCancel).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    dialogAddURL.dismiss();
+                }
+            });
+        }
+        dialogAddURL.show();
     }
 
     /**

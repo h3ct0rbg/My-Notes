@@ -22,6 +22,7 @@ import com.android.mynotes.decorators.NoteDecoratorFactory;
 import com.android.mynotes.decorators.RedNoteDecorator;
 import com.android.mynotes.decorators.YellowNoteDecorator;
 import com.android.mynotes.entities.Note;
+import com.android.mynotes.listeners.NotesListener;
 import com.makeramen.roundedimageview.RoundedImageView;
 
 import java.util.List;
@@ -33,13 +34,15 @@ import java.util.List;
 public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHolder> {
 
     private List<Note> notes;
+    private NotesListener notesListener;
 
     /**
      * Constructor to initialize the adapter with a list of notes.
      * @param notes List of notes to display.
      */
-    public NotesAdapter(List<Note> notes) {
+    public NotesAdapter(List<Note> notes, NotesListener notesListener) {
         this.notes = notes;
+        this.notesListener = notesListener;
     }
 
     /**
@@ -68,6 +71,9 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
         holder.setNote(notes.get(position));
+        holder.layoutNote.setOnClickListener(v ->
+                notesListener.onNoteClicked(notes.get(position), position)
+        );
     }
 
     /**
