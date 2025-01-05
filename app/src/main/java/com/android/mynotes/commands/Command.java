@@ -1,4 +1,4 @@
-package com.android.mynotes.command;
+package com.android.mynotes.commands;
 
 public interface Command {
     void execute();
