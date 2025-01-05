@@ -1,8 +1,11 @@
 package com.android.mynotes.adapters;
 
+import android.annotation.SuppressLint;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,19 +16,16 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.mynotes.R;
-import com.android.mynotes.decorators.NoteDecorator;
-import com.android.mynotes.decorators.BlueNoteDecorator;
-import com.android.mynotes.decorators.DefaultNoteDecorator;
-import com.android.mynotes.decorators.GreenNoteDecorator;
 import com.android.mynotes.decorators.NoteComponent;
 import com.android.mynotes.decorators.NoteDecoratorFactory;
-import com.android.mynotes.decorators.RedNoteDecorator;
-import com.android.mynotes.decorators.YellowNoteDecorator;
 import com.android.mynotes.entities.Note;
 import com.android.mynotes.listeners.NotesListener;
 import com.makeramen.roundedimageview.RoundedImageView;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Adapter class for displaying a list of notes in a RecyclerView.
@@ -35,6 +35,8 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
 
     private List<Note> notes;
     private NotesListener notesListener;
+    private Timer timer;
+    private List<Note> notesSource;
 
     /**
      * Constructor to initialize the adapter with a list of notes.
@@ -43,6 +45,7 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     public NotesAdapter(List<Note> notes, NotesListener notesListener) {
         this.notes = notes;
         this.notesListener = notesListener;
+        notesSource = notes;
     }
 
     /**
@@ -144,22 +147,33 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
         }
     }
 
-    @NonNull
-    private static NoteComponent getNoteDecorator(Note note) {
-        NoteComponent decoratedNote = new NoteDecorator(note); // Decorador base
+    public void searchNotes(final String searchKeyword) {
+        timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @SuppressLint("NotifyDataSetChanged")
+            @Override
+            public void run() {
+                if (searchKeyword.trim().isEmpty()) {
+                    notes = notesSource;
+                } else {
+                    ArrayList<Note> temp = new ArrayList<>();
+                    for (Note note : notesSource) {
+                        if (note.getTitle().toLowerCase().contains(searchKeyword.toLowerCase())
+                                || note.getSubtitle().toLowerCase().contains(searchKeyword. toLowerCase())
+                                || note.getNoteText().toLowerCase().contains(searchKeyword.toLowerCase())) {
+                            temp.add(note);
+                        }
+                    }
+                    notes = temp;
+                }
+                new Handler(Looper.getMainLooper()).post(() -> notifyDataSetChanged());
+            }
+        }, 500);
+    }
 
-        // Apply Decorators
-        if (note.getColor() != null && note.getColor().equals("#FDBE3B")) {
-            decoratedNote = new YellowNoteDecorator(note);
-        } else if (note.getColor() != null && note.getColor().equals("#FF4842")) {
-            decoratedNote = new RedNoteDecorator(note);
-        } else if (note.getColor() != null && note.getColor().equals("#3A52Fc")) {
-            decoratedNote = new BlueNoteDecorator(note);
-        } else if (note.getColor() != null && note.getColor().equals("#17C51E")) {
-            decoratedNote = new GreenNoteDecorator(note);
-        } else {
-            decoratedNote = new DefaultNoteDecorator(note);
+    public void cancelTimer() {
+        if (timer != null) {
+            timer.cancel();
         }
-        return decoratedNote;
     }
 }

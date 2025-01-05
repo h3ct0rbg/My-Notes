@@ -11,6 +11,9 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -41,6 +44,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity implements NotesListener {
 
     private static final int PERMISSION_REQUEST_CODE = 101;
+    private static final int REQUEST_CODE_ADD_NOTE = 1;
     private static final int REQUEST_CODE_UPDATE_NOTE = 2;
     private static final int REQUEST_CODE_SHOW_NOTE = 3;
 
@@ -65,7 +69,27 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
 
         setupUI();
         setupActivityResultLaunchers();
-        fetchAndDisplayNotes();
+        fetchAndDisplayNotes(REQUEST_CODE_SHOW_NOTE, false);
+
+        EditText inputSearch = findViewById(R.id.inputSearch);
+        inputSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                notesAdapter.cancelTimer();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (!noteList.isEmpty()) {
+                    notesAdapter.searchNotes(s.toString());
+                }
+            }
+        });
     }
 
     @Override
@@ -178,7 +202,7 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK) {
-                        fetchAndDisplayNotes();
+                        fetchAndDisplayNotes(REQUEST_CODE_ADD_NOTE, false);
                     }
                 }
         );
@@ -187,7 +211,12 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK) {
-                        fetchAndDisplayNotes();
+                        Intent data = result.getData();
+                        boolean isNoteDeleted = false;
+                        if (data != null) {
+                            isNoteDeleted = data.getBooleanExtra("isNoteDeleted", false);
+                        }
+                        fetchAndDisplayNotes(REQUEST_CODE_UPDATE_NOTE, isNoteDeleted);
                     }
                 }
         );
@@ -204,10 +233,10 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
     /**
      * Fetches notes from the database and updates the RecyclerView.
      */
-    private void fetchAndDisplayNotes() {
+    private void fetchAndDisplayNotes(final int requestCode, final boolean isNoteDeleted) {
         executor.execute(() -> {
             List<Note> notes = NotesDatabase.getDataBase(this).noteDao().getAllNotes();
-            handler.post(() -> updateNotesList(notes));
+            handler.post(() -> updateNotesList(notes, requestCode, isNoteDeleted));
         });
     }
 
@@ -216,14 +245,22 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
      * @param notes List of notes fetched from the database.
      */
     @SuppressLint("NotifyDataSetChanged")
-    private void updateNotesList(List<Note> notes) {
-        if (noteList.isEmpty()) {
+    private void updateNotesList(List<Note> notes, int requestCode, boolean isNoteDeleted) {
+        if (requestCode == REQUEST_CODE_SHOW_NOTE) {
             noteList.addAll(notes);
             notesAdapter.notifyDataSetChanged();
-        } else {
+        } else if (requestCode == REQUEST_CODE_ADD_NOTE) {
             noteList.add(0, notes.get(0));
             notesAdapter.notifyItemInserted(0);
-            notesRecyclerView.smoothScrollToPosition(0);
+            notesRecyclerView. smoothScrollToPosition(0);
+        } else if (requestCode == REQUEST_CODE_UPDATE_NOTE) {
+            noteList.remove(noteClickedPosition);
+            if (isNoteDeleted){
+                notesAdapter.notifyItemRemoved(noteClickedPosition);
+            } else {
+                noteList.add(noteClickedPosition, notes.get(noteClickedPosition));
+                notesAdapter.notifyItemChanged(noteClickedPosition);
+            }
         }
     }
 }
