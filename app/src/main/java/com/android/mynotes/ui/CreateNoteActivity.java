@@ -194,21 +194,7 @@ public class CreateNoteActivity extends AppCompatActivity {
         }
 
         if (alreadyAvailableNote.getColor() != null && !alreadyAvailableNote.getColor().trim().isEmpty()) {
-            Map<Integer, Class<? extends NoteDecorator>> colorDecoratorMap = getColorDecoratorMap();
-
-            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorDecoratorMap.entrySet()) {
-                try {
-                    NoteDecorator decorator = entry.getValue()
-                            .getConstructor(NoteComponent.class)
-                            .newInstance(new Note());
-                    if (decorator.getColor().equalsIgnoreCase(alreadyAvailableNote.getColor().trim())) {
-                        findViewById(entry.getKey()).performClick();
-                        break;
-                    }
-                } catch (Exception e) {
-                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
-                }
-            }
+            updateUIForSelectedColor(alreadyAvailableNote.getColor());
         }
     }
 
