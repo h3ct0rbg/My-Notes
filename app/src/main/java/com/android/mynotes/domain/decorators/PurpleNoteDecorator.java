@@ -5,6 +5,6 @@ public class PurpleNoteDecorator extends NoteDecorator {
 
     @Override
     public String getColor() {
-        return "#9C27B0"; // Purple color
+        return "#AF00FF"; // Purple color
     }
 }

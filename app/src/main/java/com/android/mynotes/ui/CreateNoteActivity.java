@@ -122,6 +122,7 @@ public class CreateNoteActivity extends AppCompatActivity {
         if (getIntent().getBooleanExtra("isViewOrUpdate", false)) {
             alreadyAvailableNote = (Note) getIntent().getSerializableExtra("note");
             setViewOrUpdateNote();
+            setupDeleteNoteButton();
         }
     }
 
@@ -281,11 +282,23 @@ public class CreateNoteActivity extends AppCompatActivity {
         BottomSheetBehavior<LinearLayout> bottomSheetBehavior = BottomSheetBehavior.from(layoutMiscellaneous);
 
         layoutMiscellaneous.findViewById(R.id.textMiscellaneous).setOnClickListener(v -> toggleBottomSheetState(bottomSheetBehavior));
-
         setupColorOptions(layoutMiscellaneous);
         setupImageSelection(layoutMiscellaneous, bottomSheetBehavior);
         setupURL(layoutMiscellaneous, bottomSheetBehavior);
-        setupDeleteNote(layoutMiscellaneous, bottomSheetBehavior);
+    }
+
+    private void setupDeleteNoteButton() {
+        LinearLayout layoutMiscellaneous = findViewById(R.id.layoutMiscellaneous);
+        BottomSheetBehavior<LinearLayout> bottomSheetBehavior = BottomSheetBehavior.from(layoutMiscellaneous);
+
+        if (alreadyAvailableNote != null) {
+            View deleteNoteOption = layoutMiscellaneous.findViewById(R.id.layoutDeleteNote);
+            deleteNoteOption.setVisibility(View.VISIBLE);
+            deleteNoteOption.setOnClickListener(v -> {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                showDeleteNoteDialog();
+            });
+        }
     }
 
     private void showDeleteNoteDialog() {
@@ -382,18 +395,6 @@ public class CreateNoteActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
             showAddURLDialog();
         });
-    }
-
-    private void setupDeleteNote(LinearLayout layoutMiscellaneous, BottomSheetBehavior<LinearLayout> bottomSheetBehavior) {
-        if (alreadyAvailableNote != null) {
-            layoutMiscellaneous.findViewById(R.id.layoutDeleteNote).setVisibility(View.VISIBLE);
-            layoutMiscellaneous.findViewById(R.id.layoutDeleteNote).setOnClickListener(v -> {
-                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-                showDeleteNoteDialog();
-            });
-            Log.d("Already Available Note", "The Already Available Note value of the note is (In): " + alreadyAvailableNote);
-        }
-        Log.d("Already Available Note", "The Already Available Note value of the note is (Out): " + alreadyAvailableNote);
     }
 
     /**
