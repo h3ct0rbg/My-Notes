@@ -12,8 +12,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Patterns;
@@ -29,21 +27,27 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModel;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.android.mynotes.R;
 import com.android.mynotes.data.NotesDatabase;
+import com.android.mynotes.data.NotesRepository;
 import com.android.mynotes.domain.Note;
-import com.android.mynotes.domain.decorators.BlueNoteDecorator;
+import com.android.mynotes.domain.NotesViewModel;
 import com.android.mynotes.domain.decorators.DefaultNoteDecorator;
+import com.android.mynotes.domain.decorators.YellowNoteDecorator;
+import com.android.mynotes.domain.decorators.RedNoteDecorator;
+import com.android.mynotes.domain.decorators.BlueNoteDecorator;
 import com.android.mynotes.domain.decorators.GreenNoteDecorator;
+import com.android.mynotes.domain.decorators.PurpleNoteDecorator;
 import com.android.mynotes.domain.decorators.NoteComponent;
 import com.android.mynotes.domain.decorators.NoteDecorator;
-import com.android.mynotes.domain.decorators.RedNoteDecorator;
-import com.android.mynotes.domain.decorators.YellowNoteDecorator;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import java.io.InputStream;
@@ -52,8 +56,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * Handles the creation and saving of new notes.
@@ -75,8 +77,7 @@ public class CreateNoteActivity extends AppCompatActivity {
 
     private Note alreadyAvailableNote;
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private NotesViewModel notesViewModel;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(), this::handlePermissionResult
@@ -90,6 +91,18 @@ public class CreateNoteActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_note);
+
+        NotesDatabase database = NotesDatabase.getDataBase(this);
+        NotesRepository repository = new NotesRepository(database);
+        notesViewModel = new ViewModelProvider(this, new ViewModelProvider.Factory() {
+            @NonNull
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
+                return (T) new NotesViewModel(repository);
+            }
+        }).get(NotesViewModel.class);
+
         initializeUI();
     }
 
@@ -102,13 +115,13 @@ public class CreateNoteActivity extends AppCompatActivity {
         setupSaveButton();
         setupRemoveButtons();
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setupMiscellaneous();
+        }
+
         if (getIntent().getBooleanExtra("isViewOrUpdate", false)) {
             alreadyAvailableNote = (Note) getIntent().getSerializableExtra("note");
             setViewOrUpdateNote();
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            setupMiscellaneous();
         }
     }
 
@@ -179,15 +192,13 @@ public class CreateNoteActivity extends AppCompatActivity {
             layoutWebURL.setVisibility(View.VISIBLE);
         }
 
-        if (alreadyAvailableNote != null &&
-                alreadyAvailableNote.getColor() != null &&
-                !alreadyAvailableNote.getColor().trim().isEmpty()) {
+        if (alreadyAvailableNote.getColor() != null && !alreadyAvailableNote.getColor().trim().isEmpty()) {
+            Map<Integer, Class<? extends NoteDecorator>> colorDecoratorMap = getColorDecoratorMap();
 
-            Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorMap();
-
-            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
+            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorDecoratorMap.entrySet()) {
                 try {
-                    NoteDecorator decorator = entry.getValue().getConstructor(NoteComponent.class)
+                    NoteDecorator decorator = entry.getValue()
+                            .getConstructor(NoteComponent.class)
                             .newInstance(new Note());
                     if (decorator.getColor().equalsIgnoreCase(alreadyAvailableNote.getColor().trim())) {
                         findViewById(entry.getKey()).performClick();
@@ -207,26 +218,23 @@ public class CreateNoteActivity extends AppCompatActivity {
         if (!validateFields()) return;
 
         Note note = new Note.Builder()
-                    .setTitle(inputNoteTitle.getText().toString())
-                    .setSubtitle(inputNoteSubtitle.getText().toString())
-                    .setNoteText(inputNoteText.getText().toString())
-                    .setDateTime(textDateTime.getText().toString())
-                    .setColor(currentNoteDecorator.getColor())
-                    .setImagePath(selectedImagePath)
-                    .setWebLink(textWebURL.getText().toString())
-                    .build();
+                .setTitle(inputNoteTitle.getText().toString())
+                .setSubtitle(inputNoteSubtitle.getText().toString())
+                .setNoteText(inputNoteText.getText().toString())
+                .setDateTime(textDateTime.getText().toString())
+                .setColor(currentNoteDecorator.getColor())
+                .setImagePath(selectedImagePath)
+                .setWebLink(textWebURL.getText().toString())
+                .build();
 
         if (alreadyAvailableNote != null) {
             note.setId(alreadyAvailableNote.getId());
+            notesViewModel.editNoteCommand(alreadyAvailableNote, note);
+        } else {
+            notesViewModel.addNoteCommand(note);
         }
 
-        executor.execute(() -> {
-            NotesDatabase.getDataBase(this).noteDao().insertNote(note);
-            handler.post(() -> {
-                setResult(RESULT_OK);
-                finish();
-            });
-        });
+        finish();
     }
 
     /**
@@ -293,17 +301,11 @@ public class CreateNoteActivity extends AppCompatActivity {
                 dialogDeleteNote.getWindow().setBackgroundDrawable(new ColorDrawable(0));
             }
 
-            view.findViewById(R.id.textDeleteNote).setOnClickListener(v -> executor.execute(() -> {
-                NotesDatabase.getDataBase(getApplicationContext()).noteDao()
-                        .deleteNote(alreadyAvailableNote);
-
-                handler.post(() -> {
-                    Intent intent = new Intent();
-                    intent.putExtra("isNoteDeleted", true);
-                    setResult(RESULT_OK, intent);
-                    finish();
-                });
-            }));
+            view.findViewById(R.id.textDeleteNote).setOnClickListener(v -> {
+                notesViewModel.deleteNoteCommand(alreadyAvailableNote);
+                dialogDeleteNote.dismiss();
+                finish();
+            });
 
             view.findViewById(R.id.textCancel).setOnClickListener(v -> dialogDeleteNote.dismiss());
         }
@@ -324,29 +326,31 @@ public class CreateNoteActivity extends AppCompatActivity {
      * Configures color selection options for notes.
      */
     private void setupColorOptions(LinearLayout layoutMiscellaneous) {
-        Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorMap();
+        Map<Integer, Class<? extends NoteDecorator>> colorDecoratorMap = getColorDecoratorMap();
 
-        for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
+        for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorDecoratorMap.entrySet()) {
             View colorView = layoutMiscellaneous.findViewById(entry.getKey());
-
-            colorView.setOnClickListener(v -> {
-                try {
-                    currentNoteDecorator = entry.getValue().getConstructor(NoteComponent.class).newInstance(new Note());
-                    updateUIForSelectedColor(currentNoteDecorator.getColor());
-                } catch (Exception e) {
-                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
-                }
-            });
+            if (colorView != null) {
+                colorView.setOnClickListener(v -> {
+                    try {
+                        currentNoteDecorator = entry.getValue().getConstructor(NoteComponent.class).newInstance(new Note());
+                        updateUIForSelectedColor(currentNoteDecorator.getColor());
+                    } catch (Exception e) {
+                        Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
+                    }
+                });
+            }
         }
     }
 
-    private Map<Integer, Class<? extends NoteDecorator>> getColorMap() {
+    private Map<Integer, Class<? extends NoteDecorator>> getColorDecoratorMap() {
         Map<Integer, Class<? extends NoteDecorator>> colorMap = new HashMap<>();
         colorMap.put(R.id.viewColor1, DefaultNoteDecorator.class);
         colorMap.put(R.id.viewColor2, YellowNoteDecorator.class);
         colorMap.put(R.id.viewColor3, RedNoteDecorator.class);
         colorMap.put(R.id.viewColor4, BlueNoteDecorator.class);
         colorMap.put(R.id.viewColor5, GreenNoteDecorator.class);
+        colorMap.put(R.id.viewColor6, PurpleNoteDecorator.class);
         return colorMap;
     }
 

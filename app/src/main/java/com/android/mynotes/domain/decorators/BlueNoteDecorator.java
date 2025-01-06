@@ -1,9 +1,7 @@
 package com.android.mynotes.domain.decorators;
 
 public class BlueNoteDecorator extends NoteDecorator {
-    public BlueNoteDecorator(NoteComponent noteComponent) {
-        super(noteComponent);
-    }
+    public BlueNoteDecorator(NoteComponent noteComponent) { super(noteComponent); }
 
     @Override
     public String getColor() {

@@ -23,6 +23,10 @@ public class NotesRepository {
         Executors.newSingleThreadExecutor().execute(() -> database.noteDao().insertNote(note));
     }
 
+    public void editNote(Note note) {
+        Executors.newSingleThreadExecutor().execute(() -> database.noteDao().insertNote(note));
+    }
+
     public void deleteNote(Note note) {
         Executors.newSingleThreadExecutor().execute(() -> database.noteDao().deleteNote(note));
     }

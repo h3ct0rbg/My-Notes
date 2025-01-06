@@ -46,18 +46,22 @@ public class MainActivity extends AppCompatActivity implements NotesListener {
     private void setupUI() {
         RecyclerView notesRecyclerView = findViewById(R.id.notesRecyclerView);
         notesRecyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
+
         notesAdapter = new NotesAdapter(new ArrayList<>(), this);
         notesRecyclerView.setAdapter(notesAdapter);
 
         findViewById(R.id.imageAddNoteMain).setOnClickListener(v -> openCreateNoteActivity());
 
-        //findViewById(R.id.imageUndo).setOnClickListener(v -> viewModel.undoCommand());
-        //findViewById(R.id.imageRedo).setOnClickListener(v -> viewModel.redoCommand());
+        findViewById(R.id.imageUndo).setOnClickListener(v -> notesViewModel.undoCommand());
+        findViewById(R.id.imageRedo).setOnClickListener(v -> notesViewModel.redoCommand());
     }
+
 
     private void observeViewModel() {
         notesViewModel.getNotes().observe(this, notes -> {
-            notesAdapter.updateNotes(notes);
+            if (notesAdapter != null) {
+                notesAdapter.updateNotes(notes);
+            }
         });
     }
 
