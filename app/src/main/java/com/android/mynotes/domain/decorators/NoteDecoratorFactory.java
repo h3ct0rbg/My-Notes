@@ -1,6 +1,6 @@
-package com.android.mynotes.decorators;
+package com.android.mynotes.domain.decorators;
 
-import com.android.mynotes.entities.Note;
+import com.android.mynotes.domain.Note;
 
 public class NoteDecoratorFactory {
 

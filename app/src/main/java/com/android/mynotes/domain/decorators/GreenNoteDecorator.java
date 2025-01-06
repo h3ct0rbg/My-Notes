@@ -1,4 +1,4 @@
-package com.android.mynotes.decorators;
+package com.android.mynotes.domain.decorators;
 
 public class GreenNoteDecorator extends NoteDecorator {
     public GreenNoteDecorator(NoteComponent noteComponent) {

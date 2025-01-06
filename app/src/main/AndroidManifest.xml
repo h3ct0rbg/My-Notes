@@ -23,11 +23,11 @@
         android:theme="@style/Theme.MyNotes">
 
         <activity
-            android:name=".activities.CreateNoteActivity"
+            android:name=".ui.CreateNoteActivity"
             android:windowSoftInputMode="stateHidden" />
 
         <activity
-            android:name=".activities.MainActivity"
+            android:name=".ui.MainActivity"
             android:windowSoftInputMode="stateHidden"
             android:exported="true">
             <intent-filter>

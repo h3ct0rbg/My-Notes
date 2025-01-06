@@ -1,4 +1,4 @@
-package com.android.mynotes.commands;
+package com.android.mynotes.domain.commands;
 
 import java.util.Stack;
 

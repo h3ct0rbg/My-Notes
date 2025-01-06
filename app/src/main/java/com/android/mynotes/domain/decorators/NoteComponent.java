@@ -1,6 +1,4 @@
-package com.android.mynotes.decorators;
-
-import com.android.mynotes.entities.Note;
+package com.android.mynotes.domain.decorators;
 
 public interface NoteComponent {
     int getId();

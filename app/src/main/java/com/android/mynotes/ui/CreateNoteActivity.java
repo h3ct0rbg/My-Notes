@@ -1,4 +1,4 @@
-package com.android.mynotes.activities;
+package com.android.mynotes.ui;
 
 import android.Manifest;
 import android.content.Intent;
@@ -19,7 +19,6 @@ import android.util.Log;
 import android.util.Patterns;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -36,9 +35,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.android.mynotes.R;
-import com.android.mynotes.database.NotesDatabase;
-import com.android.mynotes.decorators.*;
-import com.android.mynotes.entities.Note;
+import com.android.mynotes.data.NotesDatabase;
+import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.decorators.BlueNoteDecorator;
+import com.android.mynotes.domain.decorators.DefaultNoteDecorator;
+import com.android.mynotes.domain.decorators.GreenNoteDecorator;
+import com.android.mynotes.domain.decorators.NoteComponent;
+import com.android.mynotes.domain.decorators.NoteDecorator;
+import com.android.mynotes.domain.decorators.RedNoteDecorator;
+import com.android.mynotes.domain.decorators.YellowNoteDecorator;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import java.io.InputStream;
@@ -150,10 +155,10 @@ public class CreateNoteActivity extends AppCompatActivity {
 
     private void setupRemoveButtons() {
         // Remove Web URL
-        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> { clearWebURL(); });
+        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> clearWebURL());
 
         // Remove Image
-        findViewById(R.id.imageRemoveImage).setOnClickListener(v -> { clearImage(); });
+        findViewById(R.id.imageRemoveImage).setOnClickListener(v -> clearImage());
     }
 
     private void setViewOrUpdateNote() {
@@ -288,19 +293,17 @@ public class CreateNoteActivity extends AppCompatActivity {
                 dialogDeleteNote.getWindow().setBackgroundDrawable(new ColorDrawable(0));
             }
 
-            view.findViewById(R.id.textDeleteNote).setOnClickListener(v -> {
-                executor.execute(() -> {
-                    NotesDatabase.getDataBase(getApplicationContext()).noteDao()
-                            .deleteNote(alreadyAvailableNote);
+            view.findViewById(R.id.textDeleteNote).setOnClickListener(v -> executor.execute(() -> {
+                NotesDatabase.getDataBase(getApplicationContext()).noteDao()
+                        .deleteNote(alreadyAvailableNote);
 
-                    handler.post(() -> {
-                        Intent intent = new Intent();
-                        intent.putExtra("isNoteDeleted", true);
-                        setResult(RESULT_OK, intent);
-                        finish();
-                    });
+                handler.post(() -> {
+                    Intent intent = new Intent();
+                    intent.putExtra("isNoteDeleted", true);
+                    setResult(RESULT_OK, intent);
+                    finish();
                 });
-            });
+            }));
 
             view.findViewById(R.id.textCancel).setOnClickListener(v -> dialogDeleteNote.dismiss());
         }
@@ -446,7 +449,7 @@ public class CreateNoteActivity extends AppCompatActivity {
             AlertDialog.Builder builder = new AlertDialog.Builder(CreateNoteActivity.this);
             View view = LayoutInflater.from(this).inflate(
                     R.layout.layout_add_url,
-                    (ViewGroup) findViewById(R.id.layoutAddUrlContainer)
+                    findViewById(R.id.layoutAddUrlContainer)
             );
             builder.setView(view);
 
@@ -458,27 +461,19 @@ public class CreateNoteActivity extends AppCompatActivity {
             final  EditText inputURL = view.findViewById(R.id.inputURL);
             inputURL.requestFocus();
 
-            view.findViewById(R.id.textAdd).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (inputURL.getText().toString().trim().isEmpty()) {
-                        Toast.makeText(CreateNoteActivity.this, "Enter URL", Toast.LENGTH_SHORT).show();
-                    } else if (!Patterns.WEB_URL.matcher(inputURL.getText().toString()).matches()) {
-                        Toast.makeText(CreateNoteActivity.this, "Enter valid URL", Toast.LENGTH_SHORT).show();
-                    } else {
-                        textWebURL.setText(inputURL.getText().toString());
-                        layoutWebURL.setVisibility(View.VISIBLE);
-                        dialogAddURL.dismiss();
-                    }
-                }
-            });
-
-            view.findViewById(R.id.textCancel).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
+            view.findViewById(R.id.textAdd).setOnClickListener(v -> {
+                if (inputURL.getText().toString().trim().isEmpty()) {
+                    Toast.makeText(CreateNoteActivity.this, "Enter URL", Toast.LENGTH_SHORT).show();
+                } else if (!Patterns.WEB_URL.matcher(inputURL.getText().toString()).matches()) {
+                    Toast.makeText(CreateNoteActivity.this, "Enter valid URL", Toast.LENGTH_SHORT).show();
+                } else {
+                    textWebURL.setText(inputURL.getText().toString());
+                    layoutWebURL.setVisibility(View.VISIBLE);
                     dialogAddURL.dismiss();
                 }
             });
+
+            view.findViewById(R.id.textCancel).setOnClickListener(v -> dialogAddURL.dismiss());
         }
         dialogAddURL.show();
     }

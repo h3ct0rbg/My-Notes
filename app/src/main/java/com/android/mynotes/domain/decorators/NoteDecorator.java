@@ -1,6 +1,4 @@
-package com.android.mynotes.decorators;
-
-import com.android.mynotes.entities.Note;
+package com.android.mynotes.domain.decorators;
 
 public class NoteDecorator implements NoteComponent {
     private final NoteComponent noteComponent;

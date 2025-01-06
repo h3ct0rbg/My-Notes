@@ -1,11 +1,9 @@
-package com.android.mynotes.adapters;
+package com.android.mynotes.ui;
 
 import android.annotation.SuppressLint;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,16 +14,13 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.mynotes.R;
-import com.android.mynotes.decorators.NoteComponent;
-import com.android.mynotes.decorators.NoteDecoratorFactory;
-import com.android.mynotes.entities.Note;
-import com.android.mynotes.listeners.NotesListener;
+import com.android.mynotes.domain.decorators.NoteComponent;
+import com.android.mynotes.domain.decorators.NoteDecoratorFactory;
+import com.android.mynotes.domain.Note;
 import com.makeramen.roundedimageview.RoundedImageView;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.stream.Collectors;
 
 /**
  * Adapter class for displaying a list of notes in a RecyclerView.
@@ -35,7 +30,6 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
 
     private List<Note> notes;
     private NotesListener notesListener;
-    private Timer timer;
     private List<Note> notesSource;
 
     /**
@@ -147,33 +141,19 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
         }
     }
 
-    public void searchNotes(final String searchKeyword) {
-        timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @SuppressLint("NotifyDataSetChanged")
-            @Override
-            public void run() {
-                if (searchKeyword.trim().isEmpty()) {
-                    notes = notesSource;
-                } else {
-                    ArrayList<Note> temp = new ArrayList<>();
-                    for (Note note : notesSource) {
-                        if (note.getTitle().toLowerCase().contains(searchKeyword.toLowerCase())
-                                || note.getSubtitle().toLowerCase().contains(searchKeyword. toLowerCase())
-                                || note.getNoteText().toLowerCase().contains(searchKeyword.toLowerCase())) {
-                            temp.add(note);
-                        }
-                    }
-                    notes = temp;
-                }
-                new Handler(Looper.getMainLooper()).post(() -> notifyDataSetChanged());
-            }
-        }, 500);
+    @SuppressLint("NotifyDataSetChanged")
+    public void updateNotes(List<Note> notes) {
+        this.notes = notes;
+        notifyDataSetChanged();
     }
 
-    public void cancelTimer() {
-        if (timer != null) {
-            timer.cancel();
-        }
+    public void searchNotes(String query) {
+        List<Note> filteredNotes = notesSource.stream()
+                .filter(note -> note.getTitle().contains(query) ||
+                        note.getSubtitle().contains(query) ||
+                        note.getNoteText().contains(query))
+                .collect(Collectors.toList());
+        updateNotes(filteredNotes);
     }
+
 }

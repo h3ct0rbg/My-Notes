@@ -1,10 +1,10 @@
-package com.android.mynotes.entities;
+package com.android.mynotes.domain;
 
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
-import com.android.mynotes.decorators.NoteComponent;
+import com.android.mynotes.domain.decorators.NoteComponent;
 
 import java.io.Serializable;
 
