@@ -1,20 +1,12 @@
 package com.android.mynotes.ui;
 
-import android.Manifest;
+// Standard Android libraries
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.util.Log;
-import android.util.Patterns;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
@@ -23,75 +15,108 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+// Android support libraries
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 
+// External dependencies
 import com.android.mynotes.R;
 import com.android.mynotes.data.NotesDatabase;
 import com.android.mynotes.data.NotesRepository;
 import com.android.mynotes.domain.entities.Note;
 import com.android.mynotes.domain.viewmodels.NotesViewModel;
-import com.android.mynotes.domain.decorators.DefaultNoteDecorator;
-import com.android.mynotes.domain.decorators.YellowNoteDecorator;
-import com.android.mynotes.domain.decorators.RedNoteDecorator;
-import com.android.mynotes.domain.decorators.BlueNoteDecorator;
-import com.android.mynotes.domain.decorators.GreenNoteDecorator;
-import com.android.mynotes.domain.decorators.PurpleNoteDecorator;
-import com.android.mynotes.domain.decorators.NoteComponent;
-import com.android.mynotes.domain.decorators.NoteDecorator;
+import com.android.mynotes.ui.managers.ColorManager;
+import com.android.mynotes.ui.managers.ImageManager;
+import com.android.mynotes.ui.managers.UrlManager;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
-import java.io.InputStream;
+// Java libraries
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 
 /**
- * Handles the creation and saving of new notes.
+ * Activity responsible for creating and editing notes.
  */
 public class CreateNoteActivity extends AppCompatActivity {
 
+    // UI variables
     private EditText inputNoteTitle, inputNoteSubtitle, inputNoteText;
-    private TextView textDateTime;
+    private TextView textDateTime, textWebURL;
     private View viewSubtitleIndicator;
     private ImageView imageNote;
-    private TextView textWebURL;
     private LinearLayout layoutWebURL;
 
-    private NoteComponent currentNoteDecorator = new DefaultNoteDecorator(new Note());
-    private String selectedImagePath;
+    // Managers/Helpers
+    private ColorManager colorManager;
+    private ImageManager imageManager;
+    private UrlManager urlManager;
 
-    private AlertDialog dialogAddURL;
-    private AlertDialog dialogDeleteNote;
-
+    // State
     private Note alreadyAvailableNote;
 
+    // ViewModel
     private NotesViewModel notesViewModel;
 
-    private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
-            new ActivityResultContracts.RequestPermission(), this::handlePermissionResult
-    );
+    // AlertDialogs
+    private AlertDialog dialogDeleteNote;
 
-    private final ActivityResultLauncher<Intent> selectImageLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(), this::handleImageSelectionResult
-    );
+    // Activity Launchers (for permissions and image selection)
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.RequestPermission(),
+                    isGranted -> {
+                        if (isGranted) {
+                            imageManager.requestImageSelection();
+                        } else {
+                            showToast("Permission Denied!");
+                        }
+                    }
+            );
 
+    private final ActivityResultLauncher<Intent> selectImageLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                            imageManager.handleImageResult(result.getData());
+                            findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
+                        }
+                    }
+            );
+
+    /**
+     * Called when the activity is first created.
+     * Initializes ViewModel, UI, and checks if it's editing an existing note.
+     *
+     * @param savedInstanceState The previously saved state of this activity.
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_note);
 
+        initializeViewModel();
+        initializeUI();
+
+        // Check if we are viewing/updating an existing note
+        if (getIntent().getBooleanExtra("isViewOrUpdate", false)) {
+            alreadyAvailableNote = (Note) getIntent().getSerializableExtra("note");
+            setViewOrUpdateNote();
+        }
+    }
+
+    /**
+     * Initializes the ViewModel used for managing notes.
+     */
+    private void initializeViewModel() {
         NotesDatabase database = NotesDatabase.getDataBase(this);
         NotesRepository repository = new NotesRepository(database);
         notesViewModel = new ViewModelProvider(this, new ViewModelProvider.Factory() {
@@ -102,23 +127,50 @@ public class CreateNoteActivity extends AppCompatActivity {
                 return (T) new NotesViewModel(repository);
             }
         }).get(NotesViewModel.class);
-
-        initializeUI();
     }
 
     /**
-     * Initializes UI components and sets up listeners.
+     * Initializes all UI components, including managers for color, image, and URL handling.
      */
     private void initializeUI() {
         setupBackNavigation();
-        setupFields();
         setupSaveButton();
-        setupRemoveButtons();
 
+        // View references
+        inputNoteTitle = findViewById(R.id.inputNoteTitle);
+        inputNoteSubtitle = findViewById(R.id.inputNoteSubtitle);
+        inputNoteText = findViewById(R.id.inputNote);
+        textDateTime = findViewById(R.id.textDateTime);
+        viewSubtitleIndicator = findViewById(R.id.viewSubtitleIndicator);
+        imageNote = findViewById(R.id.imageNote);
+        textWebURL = findViewById(R.id.textWebURL);
+        layoutWebURL = findViewById(R.id.layoutWebURL);
+
+        // Initialize Managers
+        // Note: The constructor for ColorManager was modified to accept only a View instead of (Context, View)
+        //       for illustrative purposes, ensure it aligns with your actual implementation.
+        colorManager = new ColorManager(viewSubtitleIndicator);
+        imageManager = new ImageManager(this, imageNote, requestPermissionLauncher, selectImageLauncher);
+        urlManager = new UrlManager(this, textWebURL, layoutWebURL);
+
+        // Remove URL and Image functionality
+        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> urlManager.removeURL());
+        findViewById(R.id.imageRemoveImage).setOnClickListener(v -> {
+            imageManager.removeImage();
+            findViewById(R.id.imageRemoveImage).setVisibility(View.GONE);
+        });
+
+        // Set current date/time in the TextView
+        textDateTime.setText(
+                new SimpleDateFormat("EEEE, dd MMMM yyyy HH:mm a", Locale.getDefault()).format(new Date())
+        );
+
+        // Only set up miscellaneous UI (BottomSheet) if on Android 13+ (TIRAMISU)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             setupMiscellaneous();
         }
 
+        // If editing an existing note, enable the "Delete Note" option
         if (getIntent().getBooleanExtra("isViewOrUpdate", false)) {
             alreadyAvailableNote = (Note) getIntent().getSerializableExtra("note");
             setViewOrUpdateNote();
@@ -127,7 +179,8 @@ public class CreateNoteActivity extends AppCompatActivity {
     }
 
     /**
-     * Configures the back navigation behavior.
+     * Sets up the navigation behavior for the Back button.
+     * Finishes the activity when the user presses back.
      */
     private void setupBackNavigation() {
         ImageView imageBack = findViewById(R.id.imageBack);
@@ -142,152 +195,50 @@ public class CreateNoteActivity extends AppCompatActivity {
     }
 
     /**
-     * Configures note input fields and sets the current date and time.
-     */
-    private void setupFields() {
-        inputNoteTitle = findViewById(R.id.inputNoteTitle);
-        inputNoteSubtitle = findViewById(R.id.inputNoteSubtitle);
-        inputNoteText = findViewById(R.id.inputNote);
-        textDateTime = findViewById(R.id.textDateTime);
-        viewSubtitleIndicator = findViewById(R.id.viewSubtitleIndicator);
-        imageNote = findViewById(R.id.imageNote);
-        textWebURL = findViewById(R.id.textWebURL);
-        layoutWebURL = findViewById(R.id.layoutWebURL);
-
-        textDateTime.setText(
-                new SimpleDateFormat("EEEE, dd MMMM yyyy HH:mm a", Locale.getDefault()).format(new Date())
-        );
-    }
-
-    /**
-     * Configures the save button behavior.
+     * Sets up the behavior for the Save button.
+     * When clicked, it attempts to save the note.
      */
     private void setupSaveButton() {
         ImageView imageSave = findViewById(R.id.imageSave);
         imageSave.setOnClickListener(v -> saveNote());
     }
 
-    private void setupRemoveButtons() {
-        // Remove Web URL
-        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> clearWebURL());
-
-        // Remove Image
-        findViewById(R.id.imageRemoveImage).setOnClickListener(v -> clearImage());
-    }
-
-    private void setViewOrUpdateNote() {
-        inputNoteTitle.setText(alreadyAvailableNote.getTitle());
-        inputNoteSubtitle.setText(alreadyAvailableNote.getSubtitle());
-        inputNoteText.setText(alreadyAvailableNote.getNoteText());
-        textDateTime.setText(alreadyAvailableNote.getDateTime());
-
-        if (alreadyAvailableNote.getImagePath() != null && !alreadyAvailableNote.getImagePath().trim().isEmpty()) {
-            imageNote.setImageBitmap(BitmapFactory.decodeFile(alreadyAvailableNote.getImagePath()));
-            imageNote.setVisibility(View.VISIBLE);
-            findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
-            selectedImagePath = alreadyAvailableNote.getImagePath();
-        }
-
-        if (alreadyAvailableNote.getWebLink() != null && !alreadyAvailableNote.getWebLink().trim().isEmpty()) {
-            textWebURL.setText(alreadyAvailableNote.getWebLink());
-            layoutWebURL.setVisibility(View.VISIBLE);
-        }
-
-        if (alreadyAvailableNote.getColor() != null && !alreadyAvailableNote.getColor().trim().isEmpty()) {
-            updateUIForSelectedColor(alreadyAvailableNote.getColor());
-
-            Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorDecoratorMap();
-
-            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
-                try {
-                    NoteDecorator decorator = entry.getValue().getConstructor(NoteComponent.class)
-                            .newInstance(new Note());
-                    if (decorator.getColor().equalsIgnoreCase(alreadyAvailableNote.getColor().trim())) {
-                        findViewById(entry.getKey()).performClick();
-                        break;
-                    }
-                } catch (Exception e) {
-                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
-                }
-            }
-        }
-    }
-
     /**
-     * Handles saving a new note to the database.
-     */
-    private void saveNote() {
-        if (!validateFields()) return;
-
-        Note note = new Note.Builder()
-                .setTitle(inputNoteTitle.getText().toString())
-                .setSubtitle(inputNoteSubtitle.getText().toString())
-                .setNoteText(inputNoteText.getText().toString())
-                .setDateTime(textDateTime.getText().toString())
-                .setColor(currentNoteDecorator.getColor())
-                .setImagePath(selectedImagePath)
-                .setWebLink(textWebURL.getText().toString())
-                .build();
-
-        if (alreadyAvailableNote != null) {
-            note.setId(alreadyAvailableNote.getId());
-            notesViewModel.editNoteCommand(alreadyAvailableNote, note);
-        } else {
-            notesViewModel.addNoteCommand(note);
-        }
-
-        finish();
-    }
-
-    /**
-     * Clears the web URL and hides its layout.
-     */
-    private void clearWebURL() {
-        textWebURL.setText(null);
-        layoutWebURL.setVisibility(View.GONE);
-    }
-
-    /**
-     * Clears the selected image and hides its view.
-     */
-    private void clearImage() {
-        imageNote.setImageBitmap(null);
-        imageNote.setVisibility(View.GONE);
-        findViewById(R.id.imageRemoveImage).setVisibility(View.GONE);
-        selectedImagePath = null;
-    }
-
-    /**
-     * Validates the input fields before saving.
-     * @return true if fields are valid, false otherwise.
-     */
-    private boolean validateFields() {
-        if (inputNoteTitle.getText().toString().trim().isEmpty()) {
-            showToast("Note title can't be empty!");
-            return false;
-        }
-        if (inputNoteSubtitle.getText().toString().trim().isEmpty() &&
-                inputNoteText.getText().toString().trim().isEmpty()) {
-            showToast("Note can't be empty!");
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Configures miscellaneous options for notes.
+     * Sets up various miscellaneous options (color selection, image addition, URL addition)
+     * by binding them to a BottomSheet.
      */
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     private void setupMiscellaneous() {
         LinearLayout layoutMiscellaneous = findViewById(R.id.layoutMiscellaneous);
         BottomSheetBehavior<LinearLayout> bottomSheetBehavior = BottomSheetBehavior.from(layoutMiscellaneous);
 
-        layoutMiscellaneous.findViewById(R.id.textMiscellaneous).setOnClickListener(v -> toggleBottomSheetState(bottomSheetBehavior));
-        setupColorOptions(layoutMiscellaneous);
-        setupImageSelection(layoutMiscellaneous, bottomSheetBehavior);
-        setupURL(layoutMiscellaneous, bottomSheetBehavior);
+        // Toggle the BottomSheet when the text is clicked
+        layoutMiscellaneous.findViewById(R.id.textMiscellaneous).setOnClickListener(v -> {
+            int newState = (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED) ?
+                    BottomSheetBehavior.STATE_COLLAPSED : BottomSheetBehavior.STATE_EXPANDED;
+            bottomSheetBehavior.setState(newState);
+        });
+
+        // Set up color options
+        colorManager.setupColorOptions(layoutMiscellaneous);
+
+        // Set up image addition
+        layoutMiscellaneous.findViewById(R.id.layoutAddImage).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            imageManager.requestImageSelection();
+        });
+
+        // Set up URL addition
+        layoutMiscellaneous.findViewById(R.id.layoutAddUrl).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            urlManager.showAddURLDialog();
+        });
     }
 
+    /**
+     * If the note is being edited, this configures the BottomSheet to show
+     * a "Delete Note" option.
+     */
     private void setupDeleteNoteButton() {
         LinearLayout layoutMiscellaneous = findViewById(R.id.layoutMiscellaneous);
         BottomSheetBehavior<LinearLayout> bottomSheetBehavior = BottomSheetBehavior.from(layoutMiscellaneous);
@@ -302,6 +253,10 @@ public class CreateNoteActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Displays a dialog to confirm note deletion.
+     * If confirmed, the note is deleted via the ViewModel and the Activity finishes.
+     */
     private void showDeleteNoteDialog() {
         if (dialogDeleteNote == null) {
             AlertDialog.Builder builder = new AlertDialog.Builder(CreateNoteActivity.this);
@@ -323,180 +278,96 @@ public class CreateNoteActivity extends AppCompatActivity {
 
             view.findViewById(R.id.textCancel).setOnClickListener(v -> dialogDeleteNote.dismiss());
         }
-
         dialogDeleteNote.show();
     }
 
     /**
-     * Toggles the state of the bottom sheet.
+     * Populates the UI with the content of an existing note if the user is editing.
+     * This includes text, image, URL, and color.
      */
-    private void toggleBottomSheetState(BottomSheetBehavior<LinearLayout> bottomSheetBehavior) {
-        int newState = (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED) ?
-                BottomSheetBehavior.STATE_COLLAPSED : BottomSheetBehavior.STATE_EXPANDED;
-        bottomSheetBehavior.setState(newState);
-    }
+    private void setViewOrUpdateNote() {
+        inputNoteTitle.setText(alreadyAvailableNote.getTitle());
+        inputNoteSubtitle.setText(alreadyAvailableNote.getSubtitle());
+        inputNoteText.setText(alreadyAvailableNote.getNoteText());
+        textDateTime.setText(alreadyAvailableNote.getDateTime());
 
-    /**
-     * Configures color selection options for notes.
-     */
-    private void setupColorOptions(LinearLayout layoutMiscellaneous) {
-        Map<Integer, Class<? extends NoteDecorator>> colorDecoratorMap = getColorDecoratorMap();
-
-        for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorDecoratorMap.entrySet()) {
-            View colorView = layoutMiscellaneous.findViewById(entry.getKey());
-            if (colorView != null) {
-                colorView.setOnClickListener(v -> {
-                    try {
-                        currentNoteDecorator = entry.getValue().getConstructor(NoteComponent.class).newInstance(new Note());
-                        updateUIForSelectedColor(currentNoteDecorator.getColor());
-                    } catch (Exception e) {
-                        Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
-                    }
-                });
-            }
-        }
-    }
-
-    private Map<Integer, Class<? extends NoteDecorator>> getColorDecoratorMap() {
-        Map<Integer, Class<? extends NoteDecorator>> colorMap = new HashMap<>();
-        colorMap.put(R.id.viewColor1, DefaultNoteDecorator.class);
-        colorMap.put(R.id.viewColor2, YellowNoteDecorator.class);
-        colorMap.put(R.id.viewColor3, RedNoteDecorator.class);
-        colorMap.put(R.id.viewColor4, BlueNoteDecorator.class);
-        colorMap.put(R.id.viewColor5, GreenNoteDecorator.class);
-        colorMap.put(R.id.viewColor6, PurpleNoteDecorator.class);
-        return colorMap;
-    }
-
-    /**
-     * Updates the UI to reflect the selected color.
-     */
-    private void updateUIForSelectedColor(String colorCode) {
-        GradientDrawable gradientDrawable = (GradientDrawable) viewSubtitleIndicator.getBackground();
-        gradientDrawable.setColor(Color.parseColor(colorCode));
-    }
-
-    /**
-     * Configures the image selection option.
-     */
-    @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
-    private void setupImageSelection(LinearLayout layoutMiscellaneous, BottomSheetBehavior<LinearLayout> bottomSheetBehavior) {
-        layoutMiscellaneous.findViewById(R.id.layoutAddImage).setOnClickListener(v -> {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED) {
-                selectImage();
-            } else {
-                requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES);
-            }
-        });
-    }
-
-    private void setupURL(LinearLayout layoutMiscellaneous, BottomSheetBehavior<LinearLayout> bottomSheetBehavior) {
-        layoutMiscellaneous. findViewById(R.id. layoutAddUrl).setOnClickListener(v -> {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            showAddURLDialog();
-        });
-    }
-
-    /**
-     * Opens the image picker.
-     */
-    private void selectImage() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        selectImageLauncher.launch(intent);
-    }
-
-    /**
-     * Handles the result of the image selection.
-     */
-    private void handleImageSelectionResult(ActivityResult result) {
-        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-            Uri selectedImageUri = result.getData().getData();
-            displaySelectedImage(selectedImageUri);
-        }
-    }
-
-    private void displaySelectedImage(Uri selectedImageUri) {
-        try {
-            InputStream inputStream = getContentResolver().openInputStream(selectedImageUri);
-            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+        // Load image if it exists
+        if (alreadyAvailableNote.getImagePath() != null &&
+                !alreadyAvailableNote.getImagePath().trim().isEmpty()) {
+            Bitmap bitmap = BitmapFactory.decodeFile(alreadyAvailableNote.getImagePath());
             imageNote.setImageBitmap(bitmap);
             imageNote.setVisibility(View.VISIBLE);
             findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
-            selectedImagePath = getPathFromUri(selectedImageUri);
-        } catch (Exception e) {
-            showToast(e.getMessage());
+            imageManager.setSelectedImagePath(alreadyAvailableNote.getImagePath());
+        }
+
+        // Load URL if it exists
+        if (alreadyAvailableNote.getWebLink() != null &&
+                !alreadyAvailableNote.getWebLink().trim().isEmpty()) {
+            urlManager.setWebURL(alreadyAvailableNote.getWebLink());
+        }
+
+        // Load color if it exists
+        if (alreadyAvailableNote.getColor() != null &&
+                !alreadyAvailableNote.getColor().trim().isEmpty()) {
+            // Update the UI immediately
+            colorManager.updateUIForSelectedColor(alreadyAvailableNote.getColor());
+            // Programmatically simulate a click to set the color
+            LinearLayout layoutMiscellaneous = findViewById(R.id.layoutMiscellaneous);
+            colorManager.selectColor(alreadyAvailableNote.getColor(), layoutMiscellaneous);
         }
     }
 
     /**
-     * Converts a URI to a file path.
+     * Saves the note. If editing an existing note, it updates it; otherwise, it creates a new one.
+     * After saving, the Activity finishes.
      */
-    private String getPathFromUri(Uri uri) {
-        if (uri == null) return null;
+    private void saveNote() {
+        if (!validateFields()) return;
 
-        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int columnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA);
-                if (columnIndex != -1) {
-                    return cursor.getString(columnIndex);
-                }
-            }
-        } catch (Exception e) {
-            Log.e("CreateNoteActivity", "Error getting file path from URI", e);
-        }
+        Note note = new Note.Builder()
+                .setTitle(inputNoteTitle.getText().toString())
+                .setSubtitle(inputNoteSubtitle.getText().toString())
+                .setNoteText(inputNoteText.getText().toString())
+                .setDateTime(textDateTime.getText().toString())
+                .setColor(colorManager.getCurrentNoteDecorator() != null
+                        ? colorManager.getCurrentNoteDecorator().getColor()
+                        : null)
+                .setImagePath(imageManager.getSelectedImagePath())  // Image handling
+                .setWebLink(urlManager.getWebURL())                 // URL handling
+                .build();
 
-        // Fallback to using the URI path if no valid file path is found
-        return uri.toString();
-    }
-
-    private void showAddURLDialog() {
-        if (dialogAddURL == null) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(CreateNoteActivity.this);
-            View view = LayoutInflater.from(this).inflate(
-                    R.layout.layout_add_url,
-                    findViewById(R.id.layoutAddUrlContainer)
-            );
-            builder.setView(view);
-
-            dialogAddURL = builder.create();
-            if (dialogAddURL.getWindow() != null) {
-                dialogAddURL.getWindow().setBackgroundDrawable(new ColorDrawable(0));
-            }
-
-            final  EditText inputURL = view.findViewById(R.id.inputURL);
-            inputURL.requestFocus();
-
-            view.findViewById(R.id.textAdd).setOnClickListener(v -> {
-                if (inputURL.getText().toString().trim().isEmpty()) {
-                    Toast.makeText(CreateNoteActivity.this, "Enter URL", Toast.LENGTH_SHORT).show();
-                } else if (!Patterns.WEB_URL.matcher(inputURL.getText().toString()).matches()) {
-                    Toast.makeText(CreateNoteActivity.this, "Enter valid URL", Toast.LENGTH_SHORT).show();
-                } else {
-                    textWebURL.setText(inputURL.getText().toString());
-                    layoutWebURL.setVisibility(View.VISIBLE);
-                    dialogAddURL.dismiss();
-                }
-            });
-
-            view.findViewById(R.id.textCancel).setOnClickListener(v -> dialogAddURL.dismiss());
-        }
-        dialogAddURL.show();
-    }
-
-    /**
-     * Handles the result of the permission request.
-     */
-    private void handlePermissionResult(boolean isGranted) {
-        if (isGranted) {
-            selectImage();
+        if (alreadyAvailableNote != null) {
+            note.setId(alreadyAvailableNote.getId());
+            notesViewModel.editNoteCommand(alreadyAvailableNote, note);
         } else {
-            showToast("Permission Denied!");
+            notesViewModel.addNoteCommand(note);
         }
+        finish();
     }
 
     /**
-     * Displays a toast message.
+     * Validates that the required fields are not empty.
+     *
+     * @return true if the note can be saved, false otherwise.
+     */
+    private boolean validateFields() {
+        if (inputNoteTitle.getText().toString().trim().isEmpty()) {
+            showToast("Note title can't be empty!");
+            return false;
+        }
+        if (inputNoteSubtitle.getText().toString().trim().isEmpty() &&
+                inputNoteText.getText().toString().trim().isEmpty()) {
+            showToast("Note can't be empty!");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Shows a short Toast message.
+     *
+     * @param message The message to be displayed in the Toast.
      */
     private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();

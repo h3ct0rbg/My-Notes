@@ -24,29 +24,32 @@ import java.util.stream.Collectors;
 
 /**
  * Adapter class for displaying a list of notes in a RecyclerView.
- * This adapter binds Note objects to the views defined in item_container_note layout.
+ * This adapter binds Note objects to the views defined in the item_container_note layout.
  */
 public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHolder> {
 
     private List<Note> notes;
-    private NotesListener notesListener;
-    private List<Note> notesSource;
+    private final NotesListener notesListener;
+    private final List<Note> notesSource;
 
     /**
-     * Constructor to initialize the adapter with a list of notes.
-     * @param notes List of notes to display.
+     * Constructs a NotesAdapter with the provided notes list and listener.
+     *
+     * @param notes         The initial list of notes to be displayed.
+     * @param notesListener An implementation of NotesListener to handle note click events.
      */
     public NotesAdapter(List<Note> notes, NotesListener notesListener) {
         this.notes = notes;
         this.notesListener = notesListener;
-        notesSource = notes;
+        this.notesSource = notes; // Used for restoring the original list in search operations
     }
 
     /**
-     * Called when RecyclerView needs a new ViewHolder.
-     * @param parent The ViewGroup into which the new View will be added.
+     * Called when the RecyclerView needs a new ViewHolder to represent an item.
+     *
+     * @param parent   The parent ViewGroup into which the new View will be added.
      * @param viewType The view type of the new View.
-     * @return A new NoteViewHolder.
+     * @return A new NoteViewHolder instance.
      */
     @NonNull
     @Override
@@ -61,9 +64,10 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     }
 
     /**
-     * Called by RecyclerView to display data at a specified position.
-     * @param holder The ViewHolder that should be updated.
-     * @param position The position of the item in the dataset.
+     * Binds data from the note at the specified position to the given ViewHolder.
+     *
+     * @param holder   The ViewHolder which should be updated.
+     * @param position The position of the item within the adapter's data set.
      */
     @Override
     public void onBindViewHolder(@NonNull NoteViewHolder holder, int position) {
@@ -74,7 +78,8 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     }
 
     /**
-     * Returns the total number of items in the dataset.
+     * Returns the total number of notes in the adapter.
+     *
      * @return The size of the notes list.
      */
     @Override
@@ -83,9 +88,11 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     }
 
     /**
-     * Returns the view type of the item at a specific position.
-     * @param position Position of the item.
-     * @return View type (in this case, simply the position).
+     * Returns the view type of the item at the given position.
+     * Here, it simply returns the position itself.
+     *
+     * @param position The position of the item.
+     * @return The view type (in this case, the position).
      */
     @Override
     public int getItemViewType(int position) {
@@ -93,7 +100,33 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     }
 
     /**
-     * ViewHolder class for holding and binding note data to the UI components.
+     * Updates the notes list and refreshes the RecyclerView.
+     *
+     * @param notes The new list of notes to be displayed.
+     */
+    @SuppressLint("NotifyDataSetChanged")
+    public void updateNotes(List<Note> notes) {
+        this.notes = notes;
+        notifyDataSetChanged();
+    }
+
+    /**
+     * Searches notes in the original list based on the given query.
+     * Filters titles, subtitles, and note text for matches.
+     *
+     * @param query The search string used to filter the notes.
+     */
+    public void searchNotes(String query) {
+        List<Note> filteredNotes = notesSource.stream()
+                .filter(note -> note.getTitle().contains(query) ||
+                        note.getSubtitle().contains(query) ||
+                        note.getNoteText().contains(query))
+                .collect(Collectors.toList());
+        updateNotes(filteredNotes);
+    }
+
+    /**
+     * ViewHolder for individual notes, binding note data to UI components.
      */
     public static class NoteViewHolder extends RecyclerView.ViewHolder {
 
@@ -102,8 +135,9 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
         RoundedImageView imageNote;
 
         /**
-         * Constructor for initializing the views from the item layout.
-         * @param itemView The view of the individual item.
+         * Initializes the UI components from the item layout.
+         *
+         * @param itemView The inflated view of the individual item.
          */
         NoteViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -115,17 +149,20 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
         }
 
         /**
-         * Sets the note details to the respective views.
-         * @param note The Note object containing the details to be displayed.
+         * Sets the note information into the appropriate UI components.
+         *
+         * @param note The Note object containing data to display.
          */
-
         void setNote(Note note) {
             textTitle.setText(note.getTitle());
-            if(note.getSubtitle().trim().isEmpty()) {
+
+            if (note.getSubtitle().trim().isEmpty()) {
                 textSubtitle.setVisibility(View.GONE);
             } else {
                 textSubtitle.setText(note.getSubtitle());
+                textSubtitle.setVisibility(View.VISIBLE);
             }
+
             textDateTime.setText(note.getDateTime());
 
             GradientDrawable gradientDrawable = (GradientDrawable) layoutNote.getBackground();
@@ -140,20 +177,4 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
             }
         }
     }
-
-    @SuppressLint("NotifyDataSetChanged")
-    public void updateNotes(List<Note> notes) {
-        this.notes = notes;
-        notifyDataSetChanged();
-    }
-
-    public void searchNotes(String query) {
-        List<Note> filteredNotes = notesSource.stream()
-                .filter(note -> note.getTitle().contains(query) ||
-                        note.getSubtitle().contains(query) ||
-                        note.getNoteText().contains(query))
-                .collect(Collectors.toList());
-        updateNotes(filteredNotes);
-    }
-
 }
