@@ -1,6 +1,6 @@
 package com.android.mynotes.domain.decorators;
 
-import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.entities.Note;
 
 import java.util.HashMap;
 import java.util.Map;

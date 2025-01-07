@@ -1,9 +1,10 @@
-package com.android.mynotes.domain;
+package com.android.mynotes.domain.viewmodels;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.android.mynotes.data.NotesRepository;
+import com.android.mynotes.domain.entities.Note;
 import com.android.mynotes.domain.commands.AddNoteCommand;
 import com.android.mynotes.domain.commands.Command;
 import com.android.mynotes.domain.commands.CommandInvoker;

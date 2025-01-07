@@ -38,8 +38,8 @@ import androidx.lifecycle.ViewModelProvider;
 import com.android.mynotes.R;
 import com.android.mynotes.data.NotesDatabase;
 import com.android.mynotes.data.NotesRepository;
-import com.android.mynotes.domain.Note;
-import com.android.mynotes.domain.NotesViewModel;
+import com.android.mynotes.domain.entities.Note;
+import com.android.mynotes.domain.viewmodels.NotesViewModel;
 import com.android.mynotes.domain.decorators.DefaultNoteDecorator;
 import com.android.mynotes.domain.decorators.YellowNoteDecorator;
 import com.android.mynotes.domain.decorators.RedNoteDecorator;
@@ -195,6 +195,21 @@ public class CreateNoteActivity extends AppCompatActivity {
 
         if (alreadyAvailableNote.getColor() != null && !alreadyAvailableNote.getColor().trim().isEmpty()) {
             updateUIForSelectedColor(alreadyAvailableNote.getColor());
+
+            Map<Integer, Class<? extends NoteDecorator>> colorMap = getColorDecoratorMap();
+
+            for (Map.Entry<Integer, Class<? extends NoteDecorator>> entry : colorMap.entrySet()) {
+                try {
+                    NoteDecorator decorator = entry.getValue().getConstructor(NoteComponent.class)
+                            .newInstance(new Note());
+                    if (decorator.getColor().equalsIgnoreCase(alreadyAvailableNote.getColor().trim())) {
+                        findViewById(entry.getKey()).performClick();
+                        break;
+                    }
+                } catch (Exception e) {
+                    Log.e("CreateNoteActivity", "Error initializing NoteDecorator", e);
+                }
+            }
         }
     }
 

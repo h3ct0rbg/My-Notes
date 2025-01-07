@@ -1,4 +1,4 @@
-package com.android.mynotes.domain;
+package com.android.mynotes.domain.entities;
 
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;

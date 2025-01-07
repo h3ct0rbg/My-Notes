@@ -12,9 +12,9 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 
 import com.android.mynotes.R;
 import com.android.mynotes.data.NotesDatabase;
-import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.entities.Note;
 import com.android.mynotes.data.NotesRepository;
-import com.android.mynotes.domain.NotesViewModel;
+import com.android.mynotes.domain.viewmodels.NotesViewModel;
 
 import java.util.ArrayList;
 

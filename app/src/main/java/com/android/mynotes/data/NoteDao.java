@@ -7,7 +7,7 @@ import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 
-import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.entities.Note;
 
 import java.util.List;
 

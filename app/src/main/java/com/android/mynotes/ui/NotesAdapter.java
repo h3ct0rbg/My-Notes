@@ -16,7 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.android.mynotes.R;
 import com.android.mynotes.domain.decorators.NoteComponent;
 import com.android.mynotes.domain.decorators.NoteDecoratorFactory;
-import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.entities.Note;
 import com.makeramen.roundedimageview.RoundedImageView;
 
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.android.mynotes.domain.commands;
 
-import com.android.mynotes.domain.Note;
+import com.android.mynotes.domain.entities.Note;
 import com.android.mynotes.data.NotesRepository;
 
 public class DeleteNoteCommand implements Command {
