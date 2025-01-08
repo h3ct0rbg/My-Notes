@@ -1,16 +1,20 @@
 package com.android.mynotes.domain.viewmodels;
 
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
+import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.android.mynotes.data.NotesRepository;
 import com.android.mynotes.domain.entities.Note;
-import com.android.mynotes.domain.commands.AddNoteCommand;
 import com.android.mynotes.domain.commands.Command;
 import com.android.mynotes.domain.commands.CommandInvoker;
-import com.android.mynotes.domain.commands.DeleteNoteCommand;
+import com.android.mynotes.domain.commands.AddNoteCommand;
 import com.android.mynotes.domain.commands.EditNoteCommand;
+import com.android.mynotes.domain.commands.DeleteNoteCommand;
+import com.android.mynotes.domain.strategy.NoteSortingStrategy;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,7 +24,13 @@ import java.util.List;
 public class NotesViewModel extends ViewModel {
 
     private final NotesRepository repository;
-    private final LiveData<List<Note>> notesLiveData;
+    private final LiveData<List<Note>> allNotes;
+    private final MediatorLiveData<List<Note>> filteredNotes = new MediatorLiveData<>();
+    private final MutableLiveData<String> searchQuery = new MutableLiveData<>();
+
+    private final android.os.Handler handler = new android.os.Handler();
+    private Runnable debounceRunnable;
+    private NoteSortingStrategy sortingStrategy;
 
     /**
      * Constructs a NotesViewModel with the specified repository.
@@ -29,16 +39,84 @@ public class NotesViewModel extends ViewModel {
      */
     public NotesViewModel(NotesRepository repository) {
         this.repository = repository;
-        this.notesLiveData = repository.getAllNotes();
+        this.allNotes = repository.getAllNotes();
+
+        // Combine the logic of filtering with the original data
+        filteredNotes.addSource(allNotes, notes -> filterNotes(searchQuery.getValue()));
+        filteredNotes.addSource(searchQuery, this::debounceSearch);
     }
 
     /**
-     * Retrieves a LiveData list of all notes.
+     * Retrieves a LiveData list of filtered notes based on the search query.
      *
-     * @return LiveData containing the list of Note objects.
+     * @return LiveData containing the list of filtered Note objects.
      */
     public LiveData<List<Note>> getNotes() {
-        return notesLiveData;
+        return filteredNotes;
+    }
+
+    /**
+     * Updates the search query and triggers the filtering process.
+     *
+     * @param query The search query entered by the user.
+     */
+    public void updateSearchQuery(String query) {
+        searchQuery.setValue(query);
+    }
+
+    /**
+     * Handles debouncing for the search query to prevent excessive filtering.
+     *
+     * @param query The current search query entered by the user.
+     */
+    private void debounceSearch(String query) {
+        if (debounceRunnable != null) {
+            handler.removeCallbacks(debounceRunnable);
+        }
+
+        debounceRunnable = () -> filterNotes(query);
+        // Delay in milliseconds to debounce search
+        handler.postDelayed(debounceRunnable, 500);
+    }
+
+    /**
+     * Filters the notes based on the search query.
+     * If the query is empty, all notes are displayed.
+     *
+     * @param query The search query entered by the user.
+     */
+    private void filterNotes(String query) {
+        List<Note> notes = allNotes.getValue();
+        if (notes == null) {
+            filteredNotes.setValue(new ArrayList<>());
+            return;
+        }
+
+        if (query == null || query.trim().isEmpty()) {
+            filteredNotes.setValue(notes); // Show all notes if the query is empty
+        } else {
+            List<Note> matchingNotes = new ArrayList<>();
+            for (Note note : notes) {
+                if (note.getTitle().toLowerCase().contains(query.toLowerCase()) ||
+                        note.getSubtitle().toLowerCase().contains(query.toLowerCase()) ||
+                        note.getNoteText().toLowerCase().contains(query.toLowerCase())) {
+                    matchingNotes.add(note);
+                }
+            }
+            filteredNotes.setValue(matchingNotes); // Publish the filtered notes
+        }
+    }
+
+    public void setSortingStrategy(NoteSortingStrategy strategy) {
+        this.sortingStrategy = strategy;
+        applySorting();
+    }
+
+    private void applySorting() {
+        List<Note> currentNotes = filteredNotes.getValue();
+        if (currentNotes != null && sortingStrategy != null) {
+            filteredNotes.setValue(sortingStrategy.sort(new ArrayList<>(currentNotes)));
+        }
     }
 
     /**

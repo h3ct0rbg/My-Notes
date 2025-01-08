@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,8 +21,10 @@ import com.android.mynotes.domain.decorators.NoteDecoratorFactory;
 import com.android.mynotes.domain.entities.Note;
 import com.makeramen.roundedimageview.RoundedImageView;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Adapter class for displaying a list of notes in a RecyclerView.
@@ -30,7 +34,6 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
 
     private List<Note> notes;
     private final NotesListener notesListener;
-    private final List<Note> notesSource;
 
     /**
      * Constructs a NotesAdapter with the provided notes list and listener.
@@ -41,7 +44,6 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     public NotesAdapter(List<Note> notes, NotesListener notesListener) {
         this.notes = notes;
         this.notesListener = notesListener;
-        this.notesSource = notes; // Used for restoring the original list in search operations
     }
 
     /**
@@ -108,21 +110,6 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     public void updateNotes(List<Note> notes) {
         this.notes = notes;
         notifyDataSetChanged();
-    }
-
-    /**
-     * Searches notes in the original list based on the given query.
-     * Filters titles, subtitles, and note text for matches.
-     *
-     * @param query The search string used to filter the notes.
-     */
-    public void searchNotes(String query) {
-        List<Note> filteredNotes = notesSource.stream()
-                .filter(note -> note.getTitle().contains(query) ||
-                        note.getSubtitle().contains(query) ||
-                        note.getNoteText().contains(query))
-                .collect(Collectors.toList());
-        updateNotes(filteredNotes);
     }
 
     /**

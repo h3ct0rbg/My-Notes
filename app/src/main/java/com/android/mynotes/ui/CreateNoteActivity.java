@@ -17,6 +17,8 @@ import android.widget.Toast;
 
 // Android support libraries
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -72,11 +74,14 @@ public class CreateNoteActivity extends AppCompatActivity {
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.RequestPermission(),
-                    isGranted -> {
-                        if (isGranted) {
-                            imageManager.requestImageSelection();
-                        } else {
-                            showToast("Permission Denied!");
+                    new ActivityResultCallback<>() {
+                        @Override
+                        public void onActivityResult(Boolean isGranted) {
+                            if (isGranted) {
+                                imageManager.requestImageSelection();
+                            } else {
+                                showToast("Permission Denied!");
+                            }
                         }
                     }
             );
@@ -84,10 +89,13 @@ public class CreateNoteActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> selectImageLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                            imageManager.handleImageResult(result.getData());
-                            findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
+                    new ActivityResultCallback<>() {
+                        @Override
+                        public void onActivityResult(ActivityResult result) {
+                            if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                                imageManager.handleImageResult(result.getData());
+                                findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
+                            }
                         }
                     }
             );
@@ -332,13 +340,14 @@ public class CreateNoteActivity extends AppCompatActivity {
                 .setDateTime(textDateTime.getText().toString())
                 .setColor(colorManager.getCurrentNoteDecorator() != null
                         ? colorManager.getCurrentNoteDecorator().getColor()
-                        : null)
+                        : null)                                     // Color handling
                 .setImagePath(imageManager.getSelectedImagePath())  // Image handling
                 .setWebLink(urlManager.getWebURL())                 // URL handling
                 .build();
 
         if (alreadyAvailableNote != null) {
             note.setId(alreadyAvailableNote.getId());
+            note.setDateTime(new SimpleDateFormat("EEEE, dd MMMM yyyy HH:mm a", Locale.getDefault()).format(new Date()));
             notesViewModel.editNoteCommand(alreadyAvailableNote, note);
         } else {
             notesViewModel.addNoteCommand(note);

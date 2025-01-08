@@ -26,4 +26,5 @@
     <color name="colorNoteColor6">#AF00FF</color>
     <color name="colorDelete">#FF4842</color>
     <color name="colorSearchBackground">#333333</color>
+    <color name="colorSelected">#C37600</color>
 </resources>
