@@ -34,9 +34,7 @@ import com.android.mynotes.data.NotesDatabase;
 import com.android.mynotes.data.NotesRepository;
 import com.android.mynotes.domain.entities.Note;
 import com.android.mynotes.domain.viewmodels.NotesViewModel;
-import com.android.mynotes.ui.managers.ColorManager;
-import com.android.mynotes.ui.managers.ImageManager;
-import com.android.mynotes.ui.managers.UrlManager;
+import com.android.mynotes.ui.facade.NoteFacade;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 // Java libraries
@@ -56,10 +54,8 @@ public class CreateNoteActivity extends AppCompatActivity {
     private ImageView imageNote;
     private LinearLayout layoutWebURL;
 
-    // Managers/Helpers
-    private ColorManager colorManager;
-    private ImageManager imageManager;
-    private UrlManager urlManager;
+    // Facade
+    private NoteFacade noteFacade;
 
     // State
     private Note alreadyAvailableNote;
@@ -78,7 +74,7 @@ public class CreateNoteActivity extends AppCompatActivity {
                         @Override
                         public void onActivityResult(Boolean isGranted) {
                             if (isGranted) {
-                                imageManager.requestImageSelection();
+                                noteFacade.requestImageSelection();
                             } else {
                                 showToast("Permission Denied!");
                             }
@@ -93,7 +89,7 @@ public class CreateNoteActivity extends AppCompatActivity {
                         @Override
                         public void onActivityResult(ActivityResult result) {
                             if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                                imageManager.handleImageResult(result.getData());
+                                noteFacade.handleImageResult(result.getData());
                                 findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
                             }
                         }
@@ -154,17 +150,21 @@ public class CreateNoteActivity extends AppCompatActivity {
         textWebURL = findViewById(R.id.textWebURL);
         layoutWebURL = findViewById(R.id.layoutWebURL);
 
-        // Initialize Managers
-        // Note: The constructor for ColorManager was modified to accept only a View instead of (Context, View)
-        //       for illustrative purposes, ensure it aligns with your actual implementation.
-        colorManager = new ColorManager(viewSubtitleIndicator);
-        imageManager = new ImageManager(this, imageNote, requestPermissionLauncher, selectImageLauncher);
-        urlManager = new UrlManager(this, textWebURL, layoutWebURL);
+        // Initializes facade
+        noteFacade = new NoteFacade(
+                viewSubtitleIndicator,
+                this,
+                requestPermissionLauncher,
+                selectImageLauncher,
+                imageNote,
+                textWebURL,
+                layoutWebURL
+        );
 
         // Remove URL and Image functionality
-        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> urlManager.removeURL());
+        findViewById(R.id.imageRemoveWebURL).setOnClickListener(v -> noteFacade.removeURL());
         findViewById(R.id.imageRemoveImage).setOnClickListener(v -> {
-            imageManager.removeImage();
+            noteFacade.removeImage();
             findViewById(R.id.imageRemoveImage).setVisibility(View.GONE);
         });
 
@@ -228,18 +228,18 @@ public class CreateNoteActivity extends AppCompatActivity {
         });
 
         // Set up color options
-        colorManager.setupColorOptions(layoutMiscellaneous);
+        noteFacade.setupColorOptions(layoutMiscellaneous);
 
         // Set up image addition
         layoutMiscellaneous.findViewById(R.id.layoutAddImage).setOnClickListener(v -> {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            imageManager.requestImageSelection();
+            noteFacade.requestImageSelection();
         });
 
         // Set up URL addition
         layoutMiscellaneous.findViewById(R.id.layoutAddUrl).setOnClickListener(v -> {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            urlManager.showAddURLDialog();
+            noteFacade.showAddURLDialog();
         });
     }
 
@@ -306,23 +306,23 @@ public class CreateNoteActivity extends AppCompatActivity {
             imageNote.setImageBitmap(bitmap);
             imageNote.setVisibility(View.VISIBLE);
             findViewById(R.id.imageRemoveImage).setVisibility(View.VISIBLE);
-            imageManager.setSelectedImagePath(alreadyAvailableNote.getImagePath());
+            noteFacade.setSelectedImagePath(alreadyAvailableNote.getImagePath());
         }
 
         // Load URL if it exists
         if (alreadyAvailableNote.getWebLink() != null &&
                 !alreadyAvailableNote.getWebLink().trim().isEmpty()) {
-            urlManager.setWebURL(alreadyAvailableNote.getWebLink());
+            noteFacade.setWebURL(alreadyAvailableNote.getWebLink());
         }
 
         // Load color if it exists
         if (alreadyAvailableNote.getColor() != null &&
                 !alreadyAvailableNote.getColor().trim().isEmpty()) {
             // Update the UI immediately
-            colorManager.updateUIForSelectedColor(alreadyAvailableNote.getColor());
+            noteFacade.updateUIForSelectedColor(alreadyAvailableNote.getColor());
             // Programmatically simulate a click to set the color
             LinearLayout layoutMiscellaneous = findViewById(R.id.layoutMiscellaneous);
-            colorManager.selectColor(alreadyAvailableNote.getColor(), layoutMiscellaneous);
+            noteFacade.selectColor(alreadyAvailableNote.getColor(), layoutMiscellaneous);
         }
     }
 
@@ -338,11 +338,9 @@ public class CreateNoteActivity extends AppCompatActivity {
                 .setSubtitle(inputNoteSubtitle.getText().toString())
                 .setNoteText(inputNoteText.getText().toString())
                 .setDateTime(textDateTime.getText().toString())
-                .setColor(colorManager.getCurrentNoteDecorator() != null
-                        ? colorManager.getCurrentNoteDecorator().getColor()
-                        : null)                                     // Color handling
-                .setImagePath(imageManager.getSelectedImagePath())  // Image handling
-                .setWebLink(urlManager.getWebURL())                 // URL handling
+                .setColor(noteFacade.getSelectedColor()) // Color handling
+                .setImagePath(noteFacade.getSelectedImagePath())  // Image handling
+                .setWebLink(noteFacade.getWebURL())                 // URL handling
                 .build();
 
         if (alreadyAvailableNote != null) {
